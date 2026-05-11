@@ -1,0 +1,44 @@
+{
+  "metadata": {
+    "repo_url": "https://github.com/adit-0132/Github-Guardian-Portal",
+    "repo_full_name": "adit-0132/Github-Guardian-Portal",
+    "scanned_at": "2026-05-11T20:13:12.356343Z",
+    "commits_scanned": 9,
+    "commits_flagged": 1,
+    "total_findings": 2,
+    "scanner_version": "1.0.0"
+  },
+  "findings": [
+    {
+      "commit_sha": "07b44e2612e261a5ba646495b57e3b5131988a52",
+      "short_sha": "07b44e26",
+      "author": "mudit06mah",
+      "author_email": "mudit06maheshwari@gmail.com",
+      "timestamp": "2025-11-21T14:40:57Z",
+      "commit_message": "Added Dashboard, Settings, Incidents, Repositories",
+      "severity": "critical",
+      "matches": [
+        {
+          "rule_id": "SEC003",
+          "rule_name": "Generic API Key Assignment",
+          "severity": "high",
+          "category": "secret",
+          "flagged_snippet": "SECRET_KEY = \"your-secret-key-change-in-production\"",
+          "line_number": 6,
+          "file_path": "backend/utils/security.py"
+        },
+        {
+          "rule_id": "SEC009",
+          "rule_name": "Private Key Header",
+          "severity": "critical",
+          "category": "secret",
+          "flagged_snippet": "GITHUB_PRIVATE_KEY: \"-----BEGIN RSA PRIVATE KEY-----\\nMIIEpAIBAAKCAQEAtEt+KTSn5ETGVPyMvSK4Kl/JvgPZ0x8Iiy0m1/3cBKwDEwuh\\ngz+5zMPs6ZbphfHI+5R9YomUetZStF07PCIlo/wwXQ5A42gK/QIHzLPVzdi/aCIG\\nVDVtA+ZKQGU3B/",
+          "line_number": 32,
+          "file_path": "docker-compose.yaml"
+        }
+      ],
+      "ai_explanation": null,
+      "commit_url": "https://github.com/adit-0132/Github-Guardian-Portal/commit/07b44e2612e261a5ba646495b57e3b5131988a52"
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "metadata": {
+    "repo_url": "https://github.com/adit-0132/Github-Guardian-Portal",
+    "repo_full_name": "adit-0132/Github-Guardian-Portal",
+    "scanned_at": "2026-05-11T20:14:51.835604Z",
+    "commits_scanned": 9,
+    "commits_flagged": 1,
+    "total_findings": 2,
+    "scanner_version": "1.0.0"
+  },
+  "findings": [
+    {
+      "commit_sha": "07b44e2612e261a5ba646495b57e3b5131988a52",
+      "short_sha": "07b44e26",
+      "author": "mudit06mah",
+      "author_email": "mudit06maheshwari@gmail.com",
+      "timestamp": "2025-11-21T14:40:57Z",
+      "commit_message": "Added Dashboard, Settings, Incidents, Repositories",
+      "severity": "critical",
+      "matches": [
+        {
+          "rule_id": "SEC003",
+          "rule_name": "Generic API Key Assignment",
+          "severity": "high",
+          "category": "secret",
+          "flagged_snippet": "SECRET_KEY = \"your-secret-key-change-in-production\"",
+          "line_number": 6,
+          "file_path": "backend/utils/security.py"
+        },
+        {
+          "rule_id": "SEC009",
+          "rule_name": "Private Key Header",
+          "severity": "critical",
+          "category": "secret",
+          "flagged_snippet": "GITHUB_PRIVATE_KEY: \"-----BEGIN RSA PRIVATE KEY-----\\nMIIEpAIBAAKCAQEAtEt+KTSn5ETGVPyMvSK4Kl/JvgPZ0x8Iiy0m1/3cBKwDEwuh\\ngz+5zMPs6ZbphfHI+5R9YomUetZStF07PCIlo/wwXQ5A42gK/QIHzLPVzdi/aCIG\\nVDVtA+ZKQGU3B/",
+          "line_number": 32,
+          "file_path": "docker-compose.yaml"
+        }
+      ],
+      "ai_explanation": "# Security Review: Commit 07b44e26\n\nHey Mudit, good progress on the Dashboard/Settings features! However, this commit has two serious security issues that need to be fixed **before this code goes anywhere near a shared repo or production**. Let me walk you through both.\n\n---\n\n## Issue 1: Hardcoded Placeholder Secret Key [HIGH]\n\n**File:** `backend/utils/security.py`, line 6\n\n```python\n# \u274c What you have\nSECRET_KEY = \"your-secret-key-change-in-production\"\n```\n\n### Why This Is Dangerous\nThis string is almost certainly used to sign session tokens, JWTs, or CSRF tokens in your backend. Because it's a well-known placeholder value, an attacker could use this exact string to **forge valid authentication tokens** \u2014 essentially logging in as any user, including admins, without a password. Even if you planned to \"change it later,\" committing it means it's now in Git history forever, even after you change it.\n\n**Real-world scenario:** An attacker finds your public GitHub repo, sees this key, and uses it to sign a JWT claiming to be `user_id: 1` (usually the admin). They now have full admin access to your application.\n\n### The Fix\nNever hardcode secrets. Load them from environment variables instead:\n\n```python\n# \u2705 backend/utils/security.py\nimport os\n\nSECRET_KEY = os.environ.get(\"SECRET_KEY\")\n\nif not SECRET_KEY:\n    raise ValueError(\n        \"SECRET_KEY environment variable is not set. \"\n        \"Generate one with: python -c \\\"import secrets; print(secrets.token_hex(32))\\\"\"\n    )\n```\n\nThen set it in your local environment (never commit this file):\n```bash\n# In your terminal or a .env file (make sure .env is in .gitignore!)\nexport SECRET_KEY=\"$(python -c 'import secrets; print(secrets.token_hex(32))')\"\n```\n\n---\n\n## Issue 2: Real RSA Private Key Committed to Repository [CRITICAL]\n\n**File:** `docker-compose.yaml`, line 32\n\n```yaml\n# \u274c What you have\nGITHUB_PRIVATE_KEY: \"-----BEGIN RSA PRIVATE KEY-----\\nMIIEpAIBAAKCAQEAtEt+KTSn5ETGVPyMvSK4Kl/JvgPZ0x8Iiy0m1/3cBKwDEwuh\\n...\"\n```\n\n### Why This Is Dangerous\nThis looks like a **real RSA private key**, not a placeholder. This is the most critical type of secret leak. A GitHub App private key lets whoever holds it **authenticate as your GitHub App** and perform any actions it has been granted \u2014 reading private repositories, writing code, managing webhooks, accessing organization data, etc. \n\n**Real-world scenario:** A malicious actor clones your repo (or finds it via a Git scraping bot, which scan GitHub constantly), extracts the key, and uses it to silently exfiltrate code from every private repository your GitHub App has access to. You may never know it happened.\n\n### Immediate Actions Required (Do These Now)\n1. **Revoke this key immediately** \u2014 Go to your GitHub App settings \u2192 Private keys \u2192 Delete this key. It doesn't matter if you fix the code; the key is compromised the moment it touched a git commit.\n2. **Assume the key has already been used** \u2014 Check your GitHub App's audit log for unexpected activity.\n3. **Generate a new private key** in GitHub App settings after revoking the old one.\n\n### The Fix\n\n```yaml\n# \u2705 docker-compose.yaml\nservices:\n  backend:\n    environment:\n      GITHUB_PRIVATE_KEY: ${GITHUB_PRIVATE_KEY}  # Loaded from environment\n```\n\nStore the actual key in a `.env` file that is **never committed**:\n```bash\n# .env  (THIS FILE MUST BE IN .gitignore)\nGITHUB_PRIVATE_KEY=\"-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAK...\n-----END RSA PRIVATE KEY-----\"\n```\n\nVerify your `.gitignore` has:\n```\n# .gitignore\n.env\n*.pem\n*.key\n```\n\nFor production, use a proper secrets manager (AWS Secrets Manager, HashiCorp Vault",
+      "commit_url": "https://github.com/adit-0132/Github-Guardian-Portal/commit/07b44e2612e261a5ba646495b57e3b5131988a52"
+    }
+  ]
+}

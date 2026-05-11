@@ -1,0 +1,57 @@
+{
+  "metadata": {
+    "repo_url": "https://github.com/adit-0132/llm-context-router/",
+    "repo_full_name": "adit-0132/llm-context-router",
+    "scanned_at": "2026-05-11T18:51:07.870475Z",
+    "commits_scanned": 11,
+    "commits_flagged": 2,
+    "total_findings": 2,
+    "scanner_version": "1.0.0"
+  },
+  "findings": [
+    {
+      "commit_sha": "3161d154f17635dcc565a83c24f39565e009f682",
+      "short_sha": "3161d154",
+      "author": "mudit06mah",
+      "author_email": "mudit06maheshwari@gmail.com",
+      "timestamp": "2026-05-03T16:28:48Z",
+      "commit_message": "Add compression",
+      "severity": "high",
+      "matches": [
+        {
+          "rule_id": "DAP002",
+          "rule_name": "exec() Call",
+          "severity": "high",
+          "category": "dangerous_pattern",
+          "flagged_snippet": "while ((match = CODE_FENCE_RE.exec(content)) !== null) {",
+          "line_number": 148,
+          "file_path": "extension/compression/segmenter.js"
+        }
+      ],
+      "ai_explanation": "# Security Review: Commit 3161d154 \u2014 Add compression\n\n## Issue 1: Flagged `exec()` Call \u2014 False Positive \u2705\n\n**Good news first:** After reviewing the flagged code, this is a **false positive** from the automated scanner.\n\n```js\n// Line 148 \u2014 segmenter.js\nwhile ((match = CODE_FENCE_RE.exec(content)) !== null) {\n```\n\n### What the scanner thought it saw\n\nThe scanner flagged `.exec()` because `exec` is a dangerous function name in several contexts \u2014 most notably:\n\n- **`child_process.exec()`** in Node.js \u2014 runs arbitrary shell commands and is a serious vulnerability\n- **`eval()`-adjacent patterns** \u2014 executing dynamic code strings\n\n### What this code is actually doing\n\nThis `.exec()` is called on a **RegExp object** (`CODE_FENCE_RE`), not on a shell or process runner. `RegExp.prototype.exec()` is a completely safe, standard JavaScript method for matching a pattern against a string. It has no ability to run system commands, evaluate code, or do anything dangerous.\n\n```js\n// DANGEROUS \u2014 this is what the scanner is worried about:\nconst { exec } = require('child_process');\nexec(userInput, callback); // \u2190 Can run shell commands!\n\n// SAFE \u2014 this is what your code is actually doing:\nconst CODE_FENCE_RE = /```[\\s\\S]*?```/g;\nwhile ((match = CODE_FENCE_RE.exec(content)) !== null) { // \u2190 Just regex matching\n```\n\n### Real-World Attack Scenario (for the dangerous version)\n\nIf this *were* `child_process.exec()` and `content` came from user input, an attacker could inject shell commands like `; rm -rf /` or exfiltrate secrets. But that's not what's happening here.\n\n---\n\n## Recommendations: No Fix Required, But Consider These Improvements\n\nWhile this specific flag is a false positive, here are two small improvements worth making as you're already in this file:\n\n### 1. Make sure `CODE_FENCE_RE` uses the `g` flag and is reset properly\n\nA common bug with `RegExp.exec()` in a `while` loop is forgetting the `g` (global) flag \u2014 without it, you get an infinite loop.\n\n```js\n// \u2705 Make sure your regex is defined like this:\nconst CODE_FENCE_RE = /```[\\s\\S]*?```/g;\n\n// Or if it's reused across calls, reset lastIndex before the loop:\nCODE_FENCE_RE.lastIndex = 0;\nwhile ((match = CODE_FENCE_RE.exec(content)) !== null) {\n  // process match\n}\n```\n\n### 2. Consider `matchAll()` as a modern, cleaner alternative\n\n```js\n// \u2705 Cleaner modern approach \u2014 no mutation, no lastIndex footgun:\nconst matches = [...content.matchAll(CODE_FENCE_RE)];\nfor (const match of matches) {\n  // process match\n}\n```\n\nThis also avoids any future scanner confusion about `.exec()`.\n\n---\n\n## Summary\n\n| Issue | Severity | Status |\n|-------|----------|--------|\n| `exec()` call on RegExp | \ud83d\udfe2 None | False positive \u2014 safe regex method |\n\n**Overall Risk Level: LOW** \u2014 This commit does not introduce a security vulnerability. The automated scanner pattern-matched on the word `exec` without understanding the context. The actual code is standard, safe JavaScript regex usage. \n\nThe only action needed is to **suppress or document this false positive** in your scanner config so it doesn't create noise in future reviews. If your tool supports it, add an inline comment like `// lgtm[js/exec-call]` or equivalent.",
+      "commit_url": "https://github.com/adit-0132/llm-context-router/commit/3161d154f17635dcc565a83c24f39565e009f682"
+    },
+    {
+      "commit_sha": "197f3c278f514657e8d765ce3e110d98a1a4da48",
+      "short_sha": "197f3c27",
+      "author": "adit-0132",
+      "author_email": "aditya2017rks@gmail.com",
+      "timestamp": "2026-01-31T20:46:27Z",
+      "commit_message": "shitloads of vibecoded scripts and outputs",
+      "severity": "high",
+      "matches": [
+        {
+          "rule_id": "SEC011",
+          "rule_name": "JWT Token (Hardcoded)",
+          "severity": "high",
+          "category": "secret",
+          "flagged_snippet": "'authorization': 'Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6IjE5MzQ0ZTY1LWJiYzktNDRkMS1hOWQwLWY5NTdiMDc5YmQwZSIsInR5cCI6IkpXVCJ9.eyJhdWQiOlsiaHR0cHM6Ly9hcGkub3BlbmFpLmNvbS92MSJdLCJjbGllbnRfaWQiOiJhcHBfWDh6WT",
+          "line_number": 10,
+          "file_path": "hardcode-scripts/chatgpt-hardcode.js"
+        }
+      ],
+      "ai_explanation": "## Issue 1: Hardcoded JWT Token in Source Code\n\n### What's the Problem?\n\nOn line 10 of `hardcode-scripts/chatgpt-hardcode.js`, a real JWT (JSON Web Token) \u2014 specifically what looks like an OpenAI API bearer token \u2014 has been committed directly into the source code.\n\n```js\n// \u274c What's in your code right now\n'authorization': 'Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6IjE5MzQ0ZTY1LWJiYzktNDRkMS1hOWQwLWY5NTdiMDc5YmQwZSIsInR5cCI6IkpXVCJ9...'\n```\n\n### Why Is This Dangerous?\n\nAnyone with read access to this repository \u2014 now or in the future \u2014 can copy that token and use it to make API calls **as you**. Even if you delete it in a later commit, **the token remains visible in Git history forever** unless you explicitly purge it.\n\n**Real-world attack scenario:** A bad actor finds this public (or leaked) repo, copies the token, and starts hammering the OpenAI API on your account. You wake up to a massive bill, your account gets suspended, and any data tied to that API key is potentially exposed. This happens regularly \u2014 bots actively scan GitHub commits for exactly this pattern.\n\n---\n\n### The Fix\n\n**Step 1: Revoke the token immediately.**\nGo to [platform.openai.com](https://platform.openai.com) \u2192 API Keys \u2192 invalidate/rotate the key that was exposed. Do this *right now*, before anything else.\n\n**Step 2: Store the token in an environment variable instead.**\n\nCreate a `.env` file locally (never commit this):\n```bash\n# .env  \u2190 this file should NEVER be committed\nOPENAI_API_KEY=your-real-token-here\n```\n\nMake sure `.env` is in your `.gitignore`:\n```bash\n# .gitignore\n.env\n.env.*\n```\n\n**Step 3: Update the code to read from the environment:**\n```js\n// \u2705 Safe version \u2014 load env variables at the top of your file\nrequire('dotenv').config(); // npm install dotenv\n\nconst apiKey = process.env.OPENAI_API_KEY;\n\nif (!apiKey) {\n  throw new Error('Missing OPENAI_API_KEY environment variable. Check your .env file.');\n}\n\nconst headers = {\n  'authorization': `Bearer ${apiKey}`,\n  'content-type': 'application/json'\n};\n```\n\n**Step 4: Clean the token from Git history.**\nBecause the secret was committed, deleting it in a new commit isn't enough \u2014 it still lives in history. Use one of these tools to scrub it:\n- [`git-filter-repo`](https://github.com/newren/git-filter-repo) (recommended)\n- [BFG Repo Cleaner](https://rtyley.github.io/bfg-repo-cleaner/)\n\n```bash\n# Example using BFG to remove the file entirely from history\nbfg --delete-files chatgpt-hardcode.js\ngit push --force\n```\n\n---\n\n## Summary\n\n| Risk Level | Overall: \ud83d\udd34 HIGH |\n|---|---|\n| **Immediate action required** | Yes \u2014 rotate the exposed token NOW |\n| **Data at risk** | OpenAI account access, API quota, potential billing fraud |\n| **Affected file** | `hardcode-scripts/chatgpt-hardcode.js` |\n\nThe commit message (\"vibecoded scripts\") suggests this was quick experimental code, which is totally fine \u2014 but secrets don't care about intent. The golden rule: **never hardcode credentials, even in throwaway scripts.** Use `.env` files from the very start, and make `.gitignore` the first file you create in any project. Consider adding a pre-commit hook tool like [`detect-secrets`](https://github.com/Yelp/detect-secrets) to catch this automatically before it ever reaches the repo.",
+      "commit_url": "https://github.com/adit-0132/llm-context-router/commit/197f3c278f514657e8d765ce3e110d98a1a4da48"
+    }
+  ]
+}

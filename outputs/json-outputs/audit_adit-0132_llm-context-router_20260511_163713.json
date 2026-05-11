@@ -1,0 +1,57 @@
+{
+  "metadata": {
+    "repo_url": "https://github.com/adit-0132/llm-context-router/",
+    "repo_full_name": "adit-0132/llm-context-router",
+    "scanned_at": "2026-05-11T16:37:13.972485Z",
+    "commits_scanned": 11,
+    "commits_flagged": 2,
+    "total_findings": 2,
+    "scanner_version": "1.0.0"
+  },
+  "findings": [
+    {
+      "commit_sha": "3161d154f17635dcc565a83c24f39565e009f682",
+      "short_sha": "3161d154",
+      "author": "mudit06mah",
+      "author_email": "mudit06maheshwari@gmail.com",
+      "timestamp": "2026-05-03T16:28:48Z",
+      "commit_message": "Add compression",
+      "severity": "high",
+      "matches": [
+        {
+          "rule_id": "DAP002",
+          "rule_name": "exec() Call",
+          "severity": "high",
+          "category": "dangerous_pattern",
+          "flagged_snippet": "while ((match = CODE_FENCE_RE.exec(content)) !== null) {",
+          "line_number": 148,
+          "file_path": "extension/compression/segmenter.js"
+        }
+      ],
+      "ai_explanation": null,
+      "commit_url": "https://github.com/adit-0132/llm-context-router/commit/3161d154f17635dcc565a83c24f39565e009f682"
+    },
+    {
+      "commit_sha": "197f3c278f514657e8d765ce3e110d98a1a4da48",
+      "short_sha": "197f3c27",
+      "author": "adit-0132",
+      "author_email": "aditya2017rks@gmail.com",
+      "timestamp": "2026-01-31T20:46:27Z",
+      "commit_message": "shitloads of vibecoded scripts and outputs",
+      "severity": "high",
+      "matches": [
+        {
+          "rule_id": "SEC011",
+          "rule_name": "JWT Token (Hardcoded)",
+          "severity": "high",
+          "category": "secret",
+          "flagged_snippet": "'authorization': 'Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6IjE5MzQ0ZTY1LWJiYzktNDRkMS1hOWQwLWY5NTdiMDc5YmQwZSIsInR5cCI6IkpXVCJ9.eyJhdWQiOlsiaHR0cHM6Ly9hcGkub3BlbmFpLmNvbS92MSJdLCJjbGllbnRfaWQiOiJhcHBfWDh6WT",
+          "line_number": 10,
+          "file_path": "hardcode-scripts/chatgpt-hardcode.js"
+        }
+      ],
+      "ai_explanation": null,
+      "commit_url": "https://github.com/adit-0132/llm-context-router/commit/197f3c278f514657e8d765ce3e110d98a1a4da48"
+    }
+  ]
+}
