@@ -6,12 +6,12 @@ A CLI tool that scans GitHub repository commit history for hardcoded secrets, le
 
 ## Live Report Examples
 
-| Report | Description |
-|--------|-------------|
-| [Github-Guardian-Portal - Standard Audit](https://adit-0132.github.io/git-commit-security-auditor/outputs/html-outputs/audit_adit-0132_Github-Guardian-Portal_20260511_201312.html) | HTML report without AI explanations |
-| [Github-Guardian-Portal - AI Audit](https://adit-0132.github.io/git-commit-security-auditor/outputs/html-outputs/AI_audit_adit-0132_Github-Guardian-Portal_20260511_201451.html) | HTML report with AI-generated explanations |
-| [llm-context-router - Standard Audit](https://adit-0132.github.io/git-commit-security-auditor/outputs/html-outputs/audit_adit-0132_llm-context-router_20260511_163713.html) | HTML report without AI explanations |
-| [llm-context-router - AI Audit](https://adit-0132.github.io/git-commit-security-auditor/outputs/html-outputs/AI_audit_adit-0132_llm-context-router_20260511_185107.html) | HTML report with AI-generated explanations |
+| Report | HTML | JSON |
+|--------|------|------|
+| Github-Guardian-Portal - Standard Audit | [HTML](https://adit-0132.github.io/git-commit-security-auditor/outputs/html-outputs/audit_adit-0132_Github-Guardian-Portal_20260511_201312.html) | [JSON](https://adit-0132.github.io/git-commit-security-auditor/outputs/json-outputs/audit_adit-0132_Github-Guardian-Portal_20260511_201312.json) |
+| Github-Guardian-Portal - AI Audit | [HTML](https://adit-0132.github.io/git-commit-security-auditor/outputs/html-outputs/AI_audit_adit-0132_Github-Guardian-Portal_20260511_201451.html) | [JSON](https://adit-0132.github.io/git-commit-security-auditor/outputs/json-outputs/audit_adit-0132_Github-Guardian-Portal_20260511_201451.json) |
+| llm-context-router - Standard Audit | [HTML](https://adit-0132.github.io/git-commit-security-auditor/outputs/html-outputs/audit_adit-0132_llm-context-router_20260511_163713.html) | [JSON](https://adit-0132.github.io/git-commit-security-auditor/outputs/json-outputs/audit_adit-0132_llm-context-router_20260511_163713.json) |
+| llm-context-router - AI Audit | [HTML](https://adit-0132.github.io/git-commit-security-auditor/outputs/html-outputs/AI_audit_adit-0132_llm-context-router_20260511_185107.html) | [JSON](https://adit-0132.github.io/git-commit-security-auditor/outputs/json-outputs/audit_adit-0132_llm-context-router_20260511_185107.json) |
 
 ---
 
