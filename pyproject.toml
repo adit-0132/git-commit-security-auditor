@@ -1,0 +1,43 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "git-commit-security-auditor"
+version = "1.0.0"
+description = "CLI tool to audit GitHub commit history for security issues"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+dependencies = [
+    "requests>=2.31",
+    "anthropic>=0.40",
+    "click>=8.0",
+    "jinja2>=3.1",
+    "pydantic>=2.0",
+    "markdown>=3.5",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-mock>=3.12",
+    "responses>=0.25",
+    "ruff>=0.4",
+]
+
+[project.scripts]
+git-audit = "auditor.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["auditor"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

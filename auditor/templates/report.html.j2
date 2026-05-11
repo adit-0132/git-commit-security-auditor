@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Security Audit — {{ report.metadata.repo_full_name }}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --critical: #dc2626;
+      --high:     #ea580c;
+      --medium:   #d97706;
+      --low:      #2563eb;
+      --bg:       #f9fafb;
+      --surface:  #ffffff;
+      --border:   #e5e7eb;
+      --text:     #111827;
+      --muted:    #6b7280;
+      --code-bg:  #1e1e2e;
+      --code-fg:  #cdd6f4;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 2rem 1rem;
+    }
+
+    .container { max-width: 960px; margin: 0 auto; }
+
+    /* ── Header ──────────────────────────────────────────────────────── */
+    .header {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem 2rem;
+      margin-bottom: 1.5rem;
+    }
+    .header h1 { font-size: 1.5rem; font-weight: 700; }
+    .header h1 span { color: var(--muted); font-weight: 400; }
+    .header .meta { font-size: 0.85rem; color: var(--muted); margin-top: 0.5rem; }
+    .header a { color: inherit; }
+
+    /* ── Stats bar ───────────────────────────────────────────────────── */
+    .stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 2rem;
+      margin-bottom: 1.5rem;
+      align-items: center;
+    }
+    .stat { text-align: center; }
+    .stat .value { font-size: 1.75rem; font-weight: 700; line-height: 1; }
+    .stat .label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+    .stats .divider { width: 1px; background: var(--border); height: 2.5rem; }
+    .severity-counts { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-left: auto; }
+
+    /* ── Badges ──────────────────────────────────────────────────────── */
+    .badge {
+      display: inline-block;
+      padding: 0.2em 0.6em;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      color: #fff;
+    }
+    .badge-critical { background: var(--critical); }
+    .badge-high     { background: var(--high); }
+    .badge-medium   { background: var(--medium); }
+    .badge-low      { background: var(--low); }
+
+    /* ── Summary table ───────────────────────────────────────────────── */
+    .section-title {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+
+    .summary-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: 2rem;
+      font-size: 0.875rem;
+    }
+    .summary-table th {
+      background: var(--bg);
+      padding: 0.65rem 1rem;
+      text-align: left;
+      font-weight: 600;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    .summary-table td {
+      padding: 0.65rem 1rem;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    .summary-table tr:last-child td { border-bottom: none; }
+    .summary-table tr:hover td { background: var(--bg); }
+    .sha-link { font-family: monospace; text-decoration: none; color: var(--low); }
+    .sha-link:hover { text-decoration: underline; }
+    .commit-msg { color: var(--muted); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* ── Finding cards ───────────────────────────────────────────────── */
+    .findings { margin-bottom: 2rem; }
+
+    details.finding-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      overflow: hidden;
+    }
+    details.finding-card[open] { border-color: #c4b5fd; }
+
+    details.finding-card summary {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 1rem 1.25rem;
+      cursor: pointer;
+      list-style: none;
+      font-size: 0.9rem;
+    }
+    details.finding-card summary::-webkit-details-marker { display: none; }
+    details.finding-card summary .toggle { margin-left: auto; color: var(--muted); font-size: 0.8rem; }
+    details.finding-card[open] summary .toggle::before { content: "▲ collapse"; }
+    details.finding-card:not([open]) summary .toggle::before { content: "▼ expand"; }
+
+    .card-body { padding: 0 1.25rem 1.25rem; }
+
+    .commit-info {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 1rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .commit-info strong { color: var(--text); }
+
+    /* ── Match blocks ────────────────────────────────────────────────── */
+    .match {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.75rem 1rem;
+      margin-bottom: 0.75rem;
+    }
+    .match-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+      font-size: 0.8rem;
+    }
+    .match-rule { font-weight: 600; }
+    .match-location { color: var(--muted); margin-left: auto; font-family: monospace; font-size: 0.75rem; }
+
+    pre.snippet {
+      background: var(--code-bg);
+      color: var(--code-fg);
+      border-radius: 4px;
+      padding: 0.6rem 0.8rem;
+      overflow-x: auto;
+      font-size: 0.8rem;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    /* ── AI Explanation ──────────────────────────────────────────────── */
+    .ai-section {
+      margin-top: 1rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid var(--border);
+    }
+    .ai-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--muted);
+      margin-bottom: 0.5rem;
+    }
+    .ai-content { font-size: 0.875rem; line-height: 1.7; }
+    .ai-content h2 { font-size: 1rem; margin: 1rem 0 0.4rem; }
+    .ai-content h3 { font-size: 0.9rem; margin: 0.8rem 0 0.3rem; }
+    .ai-content p { margin-bottom: 0.6rem; }
+    .ai-content ul, .ai-content ol { margin: 0.4rem 0 0.6rem 1.2rem; }
+    .ai-content li { margin-bottom: 0.2rem; }
+    .ai-content code {
+      background: var(--code-bg);
+      color: var(--code-fg);
+      padding: 0.1em 0.35em;
+      border-radius: 3px;
+      font-size: 0.82em;
+    }
+    .ai-content pre {
+      background: var(--code-bg);
+      color: var(--code-fg);
+      padding: 0.75rem 1rem;
+      border-radius: 4px;
+      overflow-x: auto;
+      margin: 0.5rem 0;
+      font-size: 0.82em;
+      line-height: 1.5;
+    }
+    .ai-content pre code { background: none; padding: 0; }
+
+    /* ── No findings ─────────────────────────────────────────────────── */
+    .no-findings {
+      text-align: center;
+      padding: 3rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--muted);
+    }
+    .no-findings .icon { font-size: 2.5rem; margin-bottom: 0.5rem; }
+
+    /* ── Footer ──────────────────────────────────────────────────────── */
+    .footer { font-size: 0.75rem; color: var(--muted); text-align: center; margin-top: 2rem; }
+
+    /* ── Print ───────────────────────────────────────────────────────── */
+    @media print {
+      body { background: #fff; }
+      details.finding-card { border: 1px solid #ccc; }
+      details.finding-card:not([open]) { display: block; }
+      details.finding-card summary .toggle { display: none; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <div class="header">
+    <h1>
+      Security Audit &mdash;
+      <span>
+        <a href="{{ report.metadata.repo_url }}" target="_blank" rel="noopener">
+          {{ report.metadata.repo_full_name }}
+        </a>
+      </span>
+    </h1>
+    <div class="meta">
+      Scanned {{ report.metadata.scanned_at.strftime("%Y-%m-%d at %H:%M UTC") if report.metadata.scanned_at is not string else report.metadata.scanned_at }}
+      &middot; git-audit v{{ report.metadata.scanner_version }}
+    </div>
+  </div>
+
+  <!-- Stats bar -->
+  {% set sev_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0} %}
+  {% for f in report.findings %}
+    {% if f.severity.value in sev_counts %}
+      {% set _ = sev_counts.update({f.severity.value: sev_counts[f.severity.value] + 1}) %}
+    {% endif %}
+  {% endfor %}
+  <div class="stats">
+    <div class="stat">
+      <div class="value">{{ report.metadata.commits_scanned }}</div>
+      <div class="label">Commits Scanned</div>
+    </div>
+    <div class="divider"></div>
+    <div class="stat">
+      <div class="value">{{ report.metadata.commits_flagged }}</div>
+      <div class="label">Flagged Commits</div>
+    </div>
+    <div class="divider"></div>
+    <div class="stat">
+      <div class="value">{{ report.metadata.total_findings }}</div>
+      <div class="label">Total Issues</div>
+    </div>
+    <div class="severity-counts">
+      {% if sev_counts["critical"] > 0 %}
+        <span class="badge badge-critical">{{ sev_counts["critical"] }} critical</span>
+      {% endif %}
+      {% if sev_counts["high"] > 0 %}
+        <span class="badge badge-high">{{ sev_counts["high"] }} high</span>
+      {% endif %}
+      {% if sev_counts["medium"] > 0 %}
+        <span class="badge badge-medium">{{ sev_counts["medium"] }} medium</span>
+      {% endif %}
+      {% if sev_counts["low"] > 0 %}
+        <span class="badge badge-low">{{ sev_counts["low"] }} low</span>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if report.findings %}
+
+  <!-- Summary table -->
+  <p class="section-title">Findings Overview</p>
+  <table class="summary-table">
+    <thead>
+      <tr>
+        <th>Commit</th>
+        <th>Author</th>
+        <th>Date</th>
+        <th>Severity</th>
+        <th>Issues</th>
+        <th>Message</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for f in report.findings %}
+      <tr>
+        <td>
+          <a class="sha-link" href="{{ f.commit_url }}" target="_blank" rel="noopener">
+            {{ f.short_sha }}
+          </a>
+        </td>
+        <td>{{ f.author | e }}</td>
+        <td style="white-space:nowrap">
+          {{ f.timestamp.strftime("%Y-%m-%d") if f.timestamp is not string else f.timestamp[:10] }}
+        </td>
+        <td><span class="badge badge-{{ f.severity.value }}">{{ f.severity.value }}</span></td>
+        <td>{{ f.matches | length }}</td>
+        <td><span class="commit-msg">{{ f.commit_message | e }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- Detailed findings -->
+  <p class="section-title">Detailed Findings</p>
+  <div class="findings">
+    {% for f in report.findings %}
+    <details class="finding-card">
+      <summary>
+        <span class="badge badge-{{ f.severity.value }}">{{ f.severity.value }}</span>
+        <a class="sha-link" href="{{ f.commit_url }}" target="_blank" rel="noopener">
+          {{ f.short_sha }}
+        </a>
+        <strong>{{ f.author | e }}</strong>
+        &mdash;
+        <span style="color:var(--muted)">{{ f.commit_message | e }}</span>
+        <span class="toggle"></span>
+      </summary>
+
+      <div class="card-body">
+        <div class="commit-info">
+          <strong>SHA:</strong> {{ f.commit_sha }}
+          &middot;
+          <strong>Author:</strong> {{ f.author | e }} &lt;{{ f.author_email | e }}&gt;
+          &middot;
+          <strong>Date:</strong>
+          {{ f.timestamp.strftime("%Y-%m-%d %H:%M UTC") if f.timestamp is not string else f.timestamp }}
+        </div>
+
+        {% for match in f.matches %}
+        <div class="match">
+          <div class="match-header">
+            <span class="badge badge-{{ match.severity.value }}">{{ match.severity.value }}</span>
+            <span class="match-rule">{{ match.rule_id }}: {{ match.rule_name | e }}</span>
+            <span class="match-location">
+              {% if match.file_path %}{{ match.file_path | e }}{% endif %}
+              {% if match.line_number %}:{{ match.line_number }}{% endif %}
+            </span>
+          </div>
+          <pre class="snippet">{{ match.flagged_snippet | e }}</pre>
+        </div>
+        {% endfor %}
+
+        {% if f.ai_explanation %}
+        <div class="ai-section">
+          <div class="ai-label">AI Security Analysis</div>
+          <div class="ai-content">{{ f.ai_explanation | markdown | safe }}</div>
+        </div>
+        {% endif %}
+      </div>
+    </details>
+    {% endfor %}
+  </div>
+
+  {% else %}
+  <div class="no-findings">
+    <div class="icon">✓</div>
+    <strong>No security issues detected</strong>
+    <p>Scanned {{ report.metadata.commits_scanned }} commits — nothing flagged.</p>
+  </div>
+  {% endif %}
+
+  <div class="footer">
+    Generated by git-audit v{{ report.metadata.scanner_version }}
+    &middot; {{ report.metadata.scanned_at.strftime("%Y-%m-%dT%H:%M:%SZ") if report.metadata.scanned_at is not string else report.metadata.scanned_at }}
+  </div>
+
+</div>
+</body>
+</html>
