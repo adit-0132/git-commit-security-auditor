@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Multi-Tenant B2B Platform — AWS Infrastructure</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.6.1/mermaid.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap');
+
+  :root {
+    --bg: #0f1117;
+    --surface: #181c27;
+    --border: #2a2f3e;
+    --accent: #f97316;
+    --accent2: #facc15;
+    --accent3: #4f8ef7;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --label: #94a3b8;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-weight: 300;
+    line-height: 1.6;
+    padding: 48px 32px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  header {
+    margin-bottom: 56px;
+    border-left: 3px solid var(--accent);
+    padding-left: 20px;
+  }
+
+  header .tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+
+  header h1 {
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+
+  header p {
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .section {
+    margin-bottom: 64px;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+
+  .section-num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--bg);
+    background: var(--accent);
+    padding: 3px 9px;
+    border-radius: 3px;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+    margin-top: 3px;
+  }
+
+  .section-num.b { background: var(--accent2); color: #1a1200; }
+  .section-num.c { background: var(--accent3); }
+
+  .section-header h2 {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .section-header p {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  .diagram-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 32px 24px;
+    overflow-x: auto;
+  }
+
+  .diagram-card .mermaid {
+    display: flex;
+    justify-content: center;
+  }
+
+  .callouts {
+    margin-top: 16px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+  }
+
+  .callout {
+    background: #1a1f2e;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 16px;
+    font-size: 13px;
+  }
+
+  .callout strong {
+    display: block;
+    color: var(--label);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 5px;
+  }
+
+  .callout span { color: var(--muted); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="tag">AWS Infrastructure Design</div>
+  <h1>Multi-Tenant B2B Distribution Platform</h1>
+  <p>us-east-1 · 2 Availability Zones · ECS Fargate + RDS + ElastiCache</p>
+</header>
+
+<!-- FULL INFRASTRUCTURE DIAGRAM -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-num">01</div>
+    <div>
+      <h2>Full Infrastructure Overview</h2>
+      <p>Edge, VPC, compute, data, and platform services</p>
+    </div>
+  </div>
+  <div class="diagram-card">
+    <div class="mermaid">
+flowchart TD
+    subgraph Internet["Public Internet"]
+        Users["End Users\nDistributors · Customers · Service Providers"]
+        Webhooks["Webhook Sources\nStripe · Shippo"]
+    end
+
+    subgraph Edge["AWS Edge"]
+        Route53["Route 53\nWildcard *.platform.com record\nPer-tenant CNAME aliases\nHealth-check failover to standby region"]
+        WAF["AWS WAF v2\nRate limiting · Bot control\nAttached to CloudFront only"]
+        CloudFront["CloudFront\nWildcard ACM cert (us-east-1)\nPer-distributor custom-domain cert\nOrigin: ALB — no direct S3 origin for API"]
+    end
+
+    subgraph VPC["VPC — us-east-1 (AZ-a + AZ-b)"]
+        subgraph Public["Public Subnets — AZ-a + AZ-b"]
+            ALB["Application Load Balancer\nHTTPS :443 → ECS api targets\nHTTP :80 → redirect to HTTPS\nAccepts from CloudFront prefix list only"]
+            NATGW["NAT Gateway (one per AZ)\nAll outbound egress to external APIs"]
+        end
+
+        subgraph Compute["Private Subnets — Compute — AZ-a + AZ-b"]
+            ECSApi["ECS Fargate — API Service\nDjango + Gunicorn + Daphne (:8001 WebSocket)\nAutoscales on CPU + ALB request count"]
+            ECSWorkers["ECS Fargate — Worker Services\nSeparate task definition per queue group\nAutoscales on queue depth alarm"]
+            ECSBeat["ECS Fargate — Beat Service\nExactly 1 task — desired count pinned\nSchedule stored in Postgres\nNever scale above 1"]
+            PgBouncer["PgBouncer (EC2 pair — one per AZ)\nTransaction-mode pooling\n200 server connections to RDS\n1000 client connections from Fargate"]
+        end
+
+        subgraph Data["Private Subnets — Data — AZ-a + AZ-b + AZ-c"]
+            RDS["RDS Postgres 16 Multi-AZ\nPrimary (AZ-a) + Standby (AZ-b) — auto-failover\nRead Replica (AZ-c) for reporting + super-admin\nMonthly range partitions · KMS encrypted"]
+            Redis["ElastiCache Redis 7\n3 shards × 2 replicas each\nShard 0: Celery broker\nShard 1: Django Channels WebSocket layer\nShard 2: tenant resolution cache\nAutomatic failover enabled"]
+        end
+    end
+
+    subgraph Platform["AWS Platform Services"]
+        S3["S3 — Three Buckets\nplatform-artwork: uploads + canvas JSON\nplatform-pdfs: PO documents (7-day signed URLs)\nplatform-production-ready: print artifacts\nAccess via VPC Endpoint — no NAT egress cost\nLifecycle: Glacier after 90d · delete after 7y"]
+        SQS["SQS — Dead-Letter Queues\nOne DLQ per Celery queue (9 total)\nDepth + message-age alarms → CloudWatch → PagerDuty\nAccess via VPC Endpoint"]
+        SecretsManager["Secrets Manager\nDB credentials — auto-rotated every 30d\nAll third-party API keys\nPer-tenant integration keys · KMS encrypted\nECS tasks fetch via IAM role — no hardcoded values"]
+        ECR["ECR\nImmutable image tags (SHA-pinned)\nVulnerability scanning on every push\nLifecycle: keep last 10 images"]
+        CloudWatch["CloudWatch\nLog groups per ECS service (90d retention)\nAlarms: CPU · memory · queue depth · RDS connections\nAlarm → SNS → PagerDuty"]
+        XRay["AWS X-Ray\nEnd-to-end distributed tracing\ntenant_id + sp_id tagged on every segment\nLatency breakdown per external integration"]
+        GHA["GitHub Actions CI/CD\nTest → lint → security scan → build → push ECR\nDB migrations as one-off ECS task\nRolling deploy for api + worker services\nBlue/green for risky schema migrations"]
+    end
+
+    Users --> Route53 --> WAF --> CloudFront --> ALB
+    Webhooks --> ALB
+    ALB --> ECSApi
+    ECSApi & ECSWorkers --> PgBouncer --> RDS
+    ECSApi & ECSWorkers & ECSBeat --> Redis
+    ECSApi & ECSWorkers --> S3 & SQS & SecretsManager
+    ECSApi & ECSWorkers & ECSBeat --> CloudWatch & XRay
+    ECSApi & ECSWorkers --> NATGW --> Internet
+    GHA --> ECR --> ECSApi & ECSWorkers & ECSBeat
+    </div>
+  </div>
+
+  <div class="callouts">
+    <div class="callout">
+      <strong>WAF on CloudFront only</strong>
+      <span>WAF is attached to CloudFront, not the ALB. The ALB's security group only allows traffic from the CloudFront managed prefix list, so all requests pass through WAF before they can reach the load balancer. Attaching WAF to both would double the cost with no security benefit.</span>
+    </div>
+    <div class="callout">
+      <strong>PgBouncer on EC2, not ECS</strong>
+      <span>PgBouncer runs on an EC2 pair (one per AZ) rather than as an ECS sidecar. As a sidecar, each Fargate task would maintain its own isolated pool — defeating the purpose. A shared EC2 pair aggregates all Fargate task connections into a single pool of 200 connections to RDS, regardless of how many tasks are running.</span>
+    </div>
+    <div class="callout">
+      <strong>Redis — 3 shards for 3 roles</strong>
+      <span>Celery broker, Django Channels WebSocket layer, and tenant resolution cache are separated into three Redis shards. This prevents a spike in Celery job volume from starving WebSocket connections, and keeps cache eviction policies independent per use case.</span>
+    </div>
+    <div class="callout">
+      <strong>NAT Gateway per AZ</strong>
+      <span>One NAT Gateway per AZ rather than sharing one. Cross-AZ NAT traffic is billed per GB. With ECS tasks spread across both AZs, a single NAT in AZ-a would incur data transfer charges for all AZ-b egress. Two NATs is cheaper at scale and eliminates a cross-AZ availability dependency.</span>
+    </div>
+    <div class="callout">
+      <strong>VPC Endpoints for S3 + SQS</strong>
+      <span>S3 and SQS traffic routes through VPC Gateway/Interface Endpoints rather than through the NAT Gateway. NAT Gateway charges $0.045/GB of processed data — S3 uploads and SQS polling at scale would make this expensive. VPC Endpoint traffic has no per-GB charge.</span>
+    </div>
+    <div class="callout">
+      <strong>Beat Service — pinned at 1</strong>
+      <span>Celery Beat must run as exactly one instance. If two Beat processes run simultaneously, every scheduled job fires twice. The ECS service desired count is pinned to 1 and autoscaling is explicitly disabled. The schedule itself is stored in Postgres (DatabaseScheduler) so it survives task restarts without losing state.</span>
+    </div>
+  </div>
+</div>
+
+<!-- NETWORK FLOW DETAIL -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-num b">02</div>
+    <div>
+      <h2>Network Security Zones</h2>
+      <p>What lives in public vs private subnets, and why</p>
+    </div>
+  </div>
+  <div class="diagram-card">
+    <div class="mermaid">
+flowchart LR
+    subgraph PublicSubnet["Public Subnets — internet-reachable"]
+        ALB2["ALB\nTerminates TLS\nRoutes to private compute"]
+        NAT["NAT Gateways\nEgress-only for private subnets\nNo inbound path"]
+    end
+
+    subgraph PrivateCompute["Private Compute Subnets — no internet route"]
+        API2["ECS API Tasks"]
+        Workers2["ECS Worker Tasks"]
+        Beat2["ECS Beat Task"]
+        PgB2["PgBouncer EC2"]
+    end
+
+    subgraph PrivateData["Private Data Subnets — compute only, no internet"]
+        RDS2["RDS Postgres\nNo public endpoint"]
+        Redis2["ElastiCache Redis\nNo public endpoint"]
+    end
+
+    subgraph AWSServices["AWS Services — via VPC Endpoints"]
+        S3E["S3"]
+        SQSE["SQS"]
+        SME["Secrets Manager"]
+        ECRE["ECR"]
+    end
+
+    subgraph ExternalAPIs["External APIs — via NAT Gateway"]
+        Stripe2["Stripe"]
+        SendGrid2["SendGrid / SES"]
+        WATI2["WATI"]
+        Shippo2["Shippo"]
+        Sage2["Sage"]
+    end
+
+    Internet([Internet]) --> ALB2
+    ALB2 --> API2
+    API2 & Workers2 --> PgB2 --> RDS2
+    API2 & Workers2 & Beat2 --> Redis2
+    API2 & Workers2 --> S3E & SQSE & SME & ECRE
+    Workers2 --> NAT --> ExternalAPIs
+    </div>
+  </div>
+
+  <div class="callouts">
+    <div class="callout">
+      <strong>Private subnets have no internet route</strong>
+      <span>ECS tasks, PgBouncer, RDS, and ElastiCache all sit in private subnets with no internet gateway route. The only path out is through the NAT Gateway, and only workers that need to call external APIs use it.</span>
+    </div>
+    <div class="callout">
+      <strong>Data subnets locked to compute only</strong>
+      <span>RDS and ElastiCache security groups only accept connections from the compute subnet's security group — not from the public subnet. Even if the ALB were misconfigured, it could not reach the database directly.</span>
+    </div>
+  </div>
+</div>
+
+<!-- CI/CD PIPELINE -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-num c">03</div>
+    <div>
+      <h2>CI/CD Pipeline</h2>
+      <p>From code push to running ECS task</p>
+    </div>
+  </div>
+  <div class="diagram-card">
+    <div class="mermaid">
+flowchart LR
+    GH["GitHub\nPR or main branch push"]
+    GHA2["GitHub Actions\ntest → ruff lint → bandit security scan\nbuild Docker image → push to ECR"]
+    ECR2["ECR\nImmutable SHA tag\nVulnerability scan on push"]
+    Migrate["One-off ECS Task\npython manage.py migrate\nRuns before service rollout"]
+    Deploy["ECS Rolling Deploy\napi + worker services\nBlue/green for schema-risky releases"]
+    Live["Live ECS Tasks\nPick up new image on next task replacement"]
+
+    GH --> GHA2 --> ECR2 --> Migrate --> Deploy --> Live
+    </div>
+  </div>
+
+  <div class="callouts">
+    <div class="callout">
+      <strong>Migrations before rollout</strong>
+      <span>Database migrations run as a one-off ECS task before the new service version is deployed. This means the old code runs against the already-migrated schema briefly during rollout — migrations must always be backward-compatible with the previous release.</span>
+    </div>
+    <div class="callout">
+      <strong>Blue/green for risky changes</strong>
+      <span>Standard releases use rolling deploy (zero downtime, gradual task replacement). Schema changes that are not backward-compatible use blue/green — the new version is fully started before traffic is cut over, with automatic rollback if health checks fail.</span>
+    </div>
+  </div>
+</div>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    themeVariables: {
+      primaryColor: '#1e2535',
+      primaryTextColor: '#e2e8f0',
+      primaryBorderColor: '#3b4460',
+      lineColor: '#f97316',
+      secondaryColor: '#162032',
+      tertiaryColor: '#1a1f2e',
+      fontSize: '13px',
+      fontFamily: 'IBM Plex Mono, monospace',
+    },
+    flowchart: {
+      curve: 'basis',
+      padding: 20,
+      nodeSpacing: 40,
+      rankSpacing: 50,
+    }
+  });
+</script>
+</body>
+</html>
