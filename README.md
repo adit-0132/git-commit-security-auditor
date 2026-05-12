@@ -1,3 +1,11 @@
+# Multi-Tenant B2B Distribution Platform
+
+- [Full System Architecture Diagram](https://adit-0132.github.io/git-commit-security-auditor/Task-2/architecture_flows.html)
+
+- [AWS Infrastructure Diagram](https://adit-0132.github.io/git-commit-security-auditor/Task-2/aws_infrastructure.html)
+
+---
+
 # Git Commit Security Auditor
 
 A CLI tool that scans GitHub repository commit history for hardcoded secrets, leaked credentials, and dangerous code patterns - with optional AI-powered explanations via Claude.
