@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Multi-Tenant B2B Platform — System Architecture</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.6.1/mermaid.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap');
+
+  :root {
+    --bg: #0f1117;
+    --surface: #181c27;
+    --border: #2a2f3e;
+    --accent: #4f8ef7;
+    --accent2: #34d399;
+    --accent3: #f59e42;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --label: #94a3b8;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-weight: 300;
+    line-height: 1.6;
+    padding: 48px 32px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  header {
+    margin-bottom: 56px;
+    border-left: 3px solid var(--accent);
+    padding-left: 20px;
+  }
+
+  header .tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+
+  header h1 {
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+
+  header p {
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .section {
+    margin-bottom: 64px;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+
+  .section-num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--bg);
+    background: var(--accent);
+    padding: 3px 9px;
+    border-radius: 3px;
+    letter-spacing: 0.05em;
+  }
+
+  .section-num.flow { background: var(--accent2); }
+  .section-num.async { background: var(--accent3); }
+
+  .section-header h2 {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .section-header p {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  .diagram-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 32px 24px;
+    overflow-x: auto;
+  }
+
+  .diagram-card .mermaid {
+    display: flex;
+    justify-content: center;
+  }
+
+  .diagram-card svg {
+    max-width: 100%;
+    height: auto;
+  }
+
+  .hard-problems {
+    margin-top: 16px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+  }
+
+  .problem-pill {
+    background: #1a1f2e;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 16px;
+    font-size: 13px;
+  }
+
+  .problem-pill strong {
+    display: block;
+    color: var(--label);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 5px;
+  }
+
+  .problem-pill span {
+    color: var(--muted);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="tag">System Architecture Design</div>
+  <h1>Multi-Tenant B2B Distribution Platform</h1>
+  <p>Three business flows · Shared fulfillment pipeline · AWS-hosted</p>
+</header>
+
+<!-- DIAGRAM 1: SYSTEM OVERVIEW -->
+<div class="section">
+  <div class="section-header">
+    <div>
+      <div class="section-num">01</div>
+    </div>
+    <div>
+      <h2>System Overview</h2>
+      <p>Services, data layer, async jobs, and integrations</p>
+    </div>
+  </div>
+  <div class="diagram-card">
+    <div class="mermaid">
+flowchart TD
+    subgraph Clients["Client Layer"]
+        Storefront["Distributor Storefront\nacme.platform.com"]
+        AdminUI["Admin Dashboard\nadmin.platform.com"]
+        SPPortal["Service Provider Portal"]
+    end
+
+    subgraph Edge["Edge & Routing"]
+        Route53["Route 53\nWildcard + per-tenant CNAMEs"]
+        CloudFront["CloudFront\nSSL termination · Host → Tenant-ID injection"]
+        ALB["Application Load Balancer"]
+    end
+
+    subgraph Isolation["Tenant Isolation — Two Layers"]
+        MW["Request Middleware\nHost → Tenant lookup (Redis cached)\nJWT: tenant_id + role injected"]
+        RLS["Postgres Row-Level Security\ntenant_isolation policy on all tables\nsp_visibility policy for SP cross-tenant queue"]
+    end
+
+    subgraph Platform["Core Platform — Django + DRF + Channels"]
+        Orders["Orders\nUnified model · source discriminator\nExplicit state machine"]
+        Quotes["Quotes\nB2B quote builder\nCustomer approval portal"]
+        Payments["Payments\nStripe · bank transfer · cheque · cash\nPartial payment aggregation"]
+        Artwork["Artwork Approval\nRevisions + threaded comments\nReal-time review via WebSocket"]
+        Shipping["Shipping\nLeg 1: Supplier → SP (manual tracking)\nLeg 2: SP → Customer (Shippo label API)"]
+        SP["Service Providers\nGlobal identity — spans tenants\nUnified cross-tenant order queue"]
+        IAM["IAM + RBAC\nRoles: admin · sales_rep · finance · ops\nPer-request tenant scope enforcement"]
+    end
+
+    subgraph Data["Data Layer"]
+        Postgres[("Postgres 16\nRLS enforced · monthly range partitions\nMulti-AZ")]
+        Redis[("Redis 7\nCelery broker · WebSocket layer\nTenant resolution cache")]
+        S3[("Amazon S3\nArtwork files · PO PDFs · Print artifacts")]
+    end
+
+    subgraph Async["Async Layer — Celery + Beat"]
+        Queues["9 Named Queues\nEmail · WhatsApp · Stripe in/out\nShippo · PDF generation · Image · Sage"]
+        Beat["Celery Beat\nExpire stale quotes · Track shipments · Sage sync"]
+    end
+
+    subgraph Ext["External Integrations — all circuit-breaker wrapped"]
+        Stripe["Stripe\nCheckout + PaymentIntent + webhooks"]
+        SendGrid["SendGrid\nFails over to Amazon SES"]
+        WATI["WATI\nWhatsApp Business API"]
+        Shippo["Shippo\nLabel generation + tracking webhooks"]
+        Sage["Sage / ASI\nNightly accounting sync"]
+    end
+
+    Storefront & AdminUI & SPPortal --> Route53
+    Route53 --> CloudFront --> ALB --> MW
+    MW --> RLS --> Platform
+    Platform --> Postgres & Redis & S3
+    Platform --> Queues
+    Beat --> Queues
+    Queues --> Stripe & SendGrid & WATI & Shippo & Sage
+    Stripe --"signed webhook"--> Payments
+    Shippo --"tracking webhook"--> Shipping
+    </div>
+  </div>
+
+  <div class="hard-problems">
+    <div class="problem-pill">
+      <strong>Tenant Isolation</strong>
+      <span>Middleware resolves tenant from subdomain, injects into JWT. Postgres RLS policy filters every query by tenant_id — no application-level WHERE clauses needed.</span>
+    </div>
+    <div class="problem-pill">
+      <strong>SP Cross-Tenant Queue</strong>
+      <span>SPs have global identity (no tenant scope). A separate sp_visibility RLS policy grants read access to orders from linked distributors only — isolation holds everywhere else.</span>
+    </div>
+    <div class="problem-pill">
+      <strong>RBAC Enforcement</strong>
+      <span>JWT carries tenant_id + role. DRF permission class checks role predicates per endpoint. A sales_rep from Distributor A physically cannot authenticate against Distributor B's tenant context.</span>
+    </div>
+    <div class="problem-pill">
+      <strong>Sync vs Async</strong>
+      <span>Stripe webhooks return 200 in &lt;300ms — processing is always queued. Outbound calls (email, WhatsApp, label gen, Sage) are fully async. Only Stripe Checkout redirect is synchronous.</span>
+    </div>
+  </div>
+</div>
+
+<!-- DIAGRAM 2: THREE FLOWS -->
+<div class="section">
+  <div class="section-header">
+    <div>
+      <div class="section-num flow">02</div>
+    </div>
+    <div>
+      <h2>Three Business Flows → Shared Pipeline</h2>
+      <p>Online checkout and B2B quotation converge into one fulfillment pipeline</p>
+    </div>
+  </div>
+  <div class="diagram-card">
+    <div class="mermaid">
+flowchart TD
+    subgraph Flow1["Flow 1 — Online Checkout"]
+        F1A["Customer visits distributor storefront"]
+        F1B["Canvas customizer → Stripe Checkout hosted page"]
+        F1C["Stripe webhook received\nSignature verified · Event persisted for idempotency"]
+        F1D["Payment recorded via async task\nOrder auto-created · source = online_checkout"]
+    end
+
+    subgraph Flow2["Flow 2 — B2B Quotation"]
+        F2A["Sales rep builds quote\nProducts · pricing · artwork upload"]
+        F2B["Quote emailed to customer via SendGrid"]
+        F2C["Customer logs into portal\nThreaded comments → approve or reject"]
+        F2D["Approved quote converts to order\nsource = b2b_quote · same model as Flow 1"]
+    end
+
+    subgraph Pipeline["Shared Fulfillment Pipeline — both flows enter here"]
+        P1["Order created\nstatus: pending_artwork\nPayment status derived from cleared payment rows"]
+        P2["Artwork uploaded to S3\nAdmin + customer review loop\nReal-time threaded comments via WebSocket"]
+        P3["Artwork approved → domain event emitted\nPO PDF generated and emailed to supplier"]
+        P4["Supplier assigned\nstatus: po_sent"]
+    end
+
+    subgraph Flow3["Flow 3 — Service Provider Execution"]
+        F3A["SP logs in — JWT carries sp_id, no tenant scope\nUnified queue shows orders from all linked distributors\nRLS sp_visibility policy enforces link-only access"]
+        F3B["SP accepts order → in_production\nProduction progress updated incrementally"]
+        F3C["Leg 1: Supplier ships to SP\nTracking number entered manually · status: leg1_shipped"]
+        F3D["Leg 2: SP generates Shippo label\nCustomer notified via email + WhatsApp · status: leg2_shipped"]
+        F3E["Shippo tracking webhook fires on delivery\nCustomer delivery notification enqueued\nstatus: delivered"]
+    end
+
+    F1A --> F1B --> F1C --> F1D --> P1
+    F2A --> F2B --> F2C --> F2D --> P1
+    P1 --> P2 --> P3 --> P4
+    P4 --> F3A --> F3B --> F3C --> F3D --> F3E
+    </div>
+  </div>
+
+  <div class="hard-problems">
+    <div class="problem-pill">
+      <strong>Unified Order Model</strong>
+      <span>A single Order model handles both origins. A source field (online_checkout vs b2b_quote) distinguishes them. The entire fulfillment pipeline — artwork approval, PO generation, SP execution — is identical for both.</span>
+    </div>
+    <div class="problem-pill">
+      <strong>Multi-Mode Payments</strong>
+      <span>Stripe, bank transfer, cheque, and cash are all recorded as Payment rows. Partial payments are supported — order payment_status is derived from the sum of cleared rows, not a single field.</span>
+    </div>
+  </div>
+</div>
+
+<!-- DIAGRAM 3: ASYNC LAYER -->
+<div class="section">
+  <div class="section-header">
+    <div>
+      <div class="section-num async">03</div>
+    </div>
+    <div>
+      <h2>Async Job Layer</h2>
+      <p>Event producers · named queues · circuit breakers · integration outputs</p>
+    </div>
+  </div>
+  <div class="diagram-card">
+    <div class="mermaid">
+flowchart TD
+    subgraph Producers["Event Producers"]
+        SM["Order State Machine\nEmits domain event on every transition"]
+        WH["Webhook Receivers\nStripe · Shippo — verified, persisted, enqueued fast"]
+        Admin["Admin Actions\nPO generation · canvas thumbnail rendering"]
+        Beat["Celery Beat Scheduler\nQuote expiry · Shippo tracking sweep · Sage sync"]
+    end
+
+    subgraph Queues["Named Queues — Redis Broker"]
+        DEQ["domain-events\nFan-out: triggers email, WhatsApp, Sage tasks"]
+        PayQ["stripe-webhooks / stripe-out\nInbound payment processing · outbound charges"]
+        EmailQ["sendgrid-emails\n5 retries over 24 h"]
+        WAQ["wati-whatsapp\nBest-effort · skip if circuit open"]
+        ShipQ["shippo-labels\nLabel creation + hourly tracking sweep"]
+        PDFQ["pdf-generation\nPO documents · CPU-bound isolated pool"]
+        SageQ["sage-sync\nNightly accounting export"]
+    end
+
+    subgraph CB["Circuit Breakers — all external calls wrapped"]
+        CB1["SendGrid → fails over to SES"]
+        CB2["WATI → log and skip (best-effort)"]
+        CB3["Stripe → retry with exponential backoff"]
+        CB4["Shippo → dead-letter queue + ops alert"]
+    end
+
+    subgraph Out["Integration Outputs"]
+        SG["SendGrid / Amazon SES"]
+        WA["WATI WhatsApp"]
+        ST["Stripe API"]
+        SH["Shippo API"]
+        S3o["S3 — PO PDFs + thumbnails"]
+        Sageo["Sage / ASI"]
+    end
+
+    SM --> DEQ
+    WH --> PayQ
+    Admin --> PDFQ
+    Beat --> DEQ & ShipQ & SageQ
+
+    DEQ --> EmailQ & WAQ & SageQ
+    PayQ --> CB3 --> ST
+    EmailQ --> CB1 --> SG
+    WAQ --> CB2 --> WA
+    ShipQ --> CB4 --> SH
+    PDFQ --> S3o
+    SageQ --> Sageo
+    </div>
+  </div>
+
+  <div class="hard-problems">
+    <div class="problem-pill">
+      <strong>Graceful Degradation</strong>
+      <span>Every external call sits behind a circuit breaker. SendGrid fails over to SES. WhatsApp is explicitly best-effort — orders still flow if WATI is down. Shippo failures page ops, not the customer.</span>
+    </div>
+    <div class="problem-pill">
+      <strong>Webhook Safety</strong>
+      <span>Stripe and Shippo webhooks are verified, persisted to DB with a processed_at idempotency key, then enqueued. The view always returns 200 fast — processing happens entirely out of band.</span>
+    </div>
+  </div>
+</div>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    themeVariables: {
+      primaryColor: '#1e2535',
+      primaryTextColor: '#e2e8f0',
+      primaryBorderColor: '#3b4460',
+      lineColor: '#4f8ef7',
+      secondaryColor: '#162032',
+      tertiaryColor: '#1a1f2e',
+      fontSize: '13px',
+      fontFamily: 'IBM Plex Mono, monospace',
+    },
+    flowchart: {
+      curve: 'basis',
+      padding: 20,
+      nodeSpacing: 40,
+      rankSpacing: 50,
+    }
+  });
+</script>
+</body>
+</html>
